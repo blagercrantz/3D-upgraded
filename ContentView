@@ -61,10 +61,8 @@ struct ContentView: View {
                         let eyeAngle = atan(derivative)
 
                         // to know left from right
-                        let rightPoint = PointData(x: cameraX + cos(radiate(input: longitude - 5)), y: cameraY, z: cameraZ - sin(radiate(input: longitude - 5)))
-                        let leftPoint = PointData(x: cameraX + cos(radiate(input: longitude + 5)), y: cameraY, z: cameraZ - sin(radiate(input: longitude + 5)))
-                        let right = computeDistance(x: (point.x - rightPoint.x), y: 0, z: (point.z - rightPoint.z)) < computeDistance(x: (point.x - leftPoint.x), y: 0, z: (point.z - leftPoint.z))
-                        
+                        let right = newDifferenceZ > 0
+
                         Circle()
                             .foregroundColor(.white)
                             .frame(width: 3.5, height: 3.5)
