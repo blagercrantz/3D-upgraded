@@ -1,0 +1,262 @@
+import SwiftUI
+
+struct ContentView: View {
+    @State var points: [PointData] = []
+    @State var fov: Double = 180
+    @State var latitude: Double = 0
+    @State var longitude: Double = 0
+    @State var cameraX: Double = 0
+    @State var cameraY: Double = 0.5
+    @State var cameraZ: Double = 0
+    @State var newX: Double = 0
+    @State var newY: Double = 0
+    @State var newZ: Double = 0
+    @State var add = false
+    @State var goForward = false
+    @State var goBackward = false
+    @State var turnUp = false
+    @State var turnDown = false
+    @State var turnLeft = false
+    @State var turnRight = false
+    
+    
+    let timer = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
+    var body: some View {
+        ZStack {
+            Color.black
+                .ignoresSafeArea()
+            VStack {
+                HStack {
+                    Text("FOV: \(fov, specifier: "%.0f")°")
+                    Spacer()
+                    Button(add ? "Done" : "Add", action: {
+                        withAnimation(.spring(response: 0.2, dampingFraction: 1)) {
+                            add.toggle()
+                        }
+                    })
+                }
+                .foregroundColor(.white)
+                .font(Font.system(.callout, design: .monospaced))
+                .padding(.horizontal, 10)
+                Slider(value: $fov, in: 0...180, step: 1)
+                    .padding(.horizontal, 10)
+                    .tint(Color("AccentColor"))
+                Spacer()
+                ZStack {
+                    ForEach(points) { point in
+                        // find angular distance from the center
+                        let distance = computeDistance(x: (point.x - cameraX), y: (point.y - cameraY), z: (point.z - cameraZ))
+                        let sightPoint = PointData(x: cameraX + cos(radiate(input: longitude)) * cos(radiate(input: latitude)) * distance, y: cameraY + sin(radiate(input: latitude)) * distance, z: cameraZ - sin(radiate(input: longitude)) * cos(radiate(input: latitude)) * distance)
+                        let difference = computeDistance(x: (point.x - sightPoint.x), y: (point.y - sightPoint.y), z: (point.z - sightPoint.z))
+                        let angle = computeAngle(a: distance, b: distance, c: difference)
+                        let angleOverFov = angle / radiate(input: fov)
+                        
+                        // find eyeAngle
+                        let differenceX = point.x - cameraX
+                        let differenceY = point.y - cameraY
+                        let differenceZ = point.z - cameraZ
+                        let newDifferenceZ = cos(radiate(input: longitude)) * differenceZ + sin(radiate(input: longitude)) * differenceX
+                        let newDifferenceY = cos(radiate(input: latitude)) * differenceY - sin(radiate(input: latitude)) * (cos(radiate(input: longitude)) * differenceX - sin(radiate(input: longitude)) * differenceZ)
+                        let derivative = abs(newDifferenceY / newDifferenceZ)
+                        let eyeAngle = atan(derivative)
+
+                        // to know left from right
+                        let rightPoint = PointData(x: cameraX + cos(radiate(input: longitude - 5)), y: cameraY, z: cameraZ - sin(radiate(input: longitude - 5)))
+                        let leftPoint = PointData(x: cameraX + cos(radiate(input: longitude + 5)), y: cameraY, z: cameraZ - sin(radiate(input: longitude + 5)))
+                        let right = computeDistance(x: (point.x - rightPoint.x), y: 0, z: (point.z - rightPoint.z)) < computeDistance(x: (point.x - leftPoint.x), y: 0, z: (point.z - leftPoint.z))
+                        
+                        Circle()
+                            .foregroundColor(.white)
+                            .frame(width: 3.5, height: 3.5)
+                            .offset(x: angleOverFov * (right ? 370 : -370) * cos(eyeAngle), y: angleOverFov * 370 * (newDifferenceY > 0 ? -sin(eyeAngle) : sin(eyeAngle)))
+                            .opacity(angleOverFov > 0.498 ? 0 : 1)
+                    }
+                    Circle()
+                        .stroke(.white, lineWidth: 1.2)
+                        .frame(width: 370, height: 370)
+                    
+                }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 35)
+                Spacer()
+                if add {
+                    Button("Insert", action: {
+                        points.append(PointData(x: newX, y: newY, z: newZ))
+                    })
+                    .foregroundColor(.white)
+                    .font(Font.system(.callout, design: .monospaced))
+                    .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .onAppear {
+                        for i in stride(from: 0.0, through: 180.0, by: 5) {
+                            for j in stride(from: 0.0, through: 360.0, by: 5) {
+                                points.append(PointData(x: 0.5 + 0.5 * cos(radiate(input: j)) * sin(radiate(input: i)), y: 0.5 + 0.5 * sin(radiate(input: j)), z: 0.5 + 0.5 * cos(radiate(input: j)) * cos(radiate(input: i))))
+                            }
+                        }
+                    }
+                    HStack {
+                        Text("x: \(newX, specifier: "%.2f")")
+                            .foregroundColor(.white)
+                            .font(Font.system(.callout, design: .monospaced))
+                            .padding(.horizontal, 10)
+                        Slider(value: $newX, in: 0...1, step: 0.01)
+                            .padding(.trailing, 10)
+                            .tint(Color("AccentColor"))
+                    }
+                    HStack {
+                        Text("y: \(newY, specifier: "%.2f")")
+                            .foregroundColor(.white)
+                            .font(Font.system(.callout, design: .monospaced))
+                            .padding(.horizontal, 10)
+                        Slider(value: $newY, in: 0...1, step: 0.01)
+                            .padding(.trailing, 10)
+                            .tint(Color("AccentColor"))
+                    }
+                    HStack {
+                        Text("z: \(newZ, specifier: "%.2f")")
+                            .foregroundColor(.white)
+                            .font(Font.system(.callout, design: .monospaced))
+                            .padding(.horizontal, 10)
+                        Slider(value: $newZ, in: 0...1, step: 0.01)
+                            .padding(.trailing, 10)
+                            .tint(Color("AccentColor"))
+                    }
+                } else {
+                    HStack(spacing: -9) {
+                        Button(action: {
+                            turnDown = false
+                        }) {
+                            Image(systemName: "arrow.uturn.down.square")
+                                .font(.system(size: 43))
+                                .fontWeight(.ultraLight)
+                                .foregroundColor(.white)
+                        }
+                        .simultaneousGesture(LongPressGesture(minimumDuration: 0).onEnded({ _ in
+                            turnDown = true
+                        }))
+                        Button(action: {
+                            goForward = false
+                        }) {
+                            Image(systemName: "arrowtriangle.up.square")
+                                .font(.system(size: 43))
+                                .fontWeight(.ultraLight)
+                                .foregroundColor(.white)
+                        }
+                        .simultaneousGesture(LongPressGesture(minimumDuration: 0).onEnded({ _ in
+                            goForward = true
+                        }))
+                        Button(action: {
+                            turnUp = false
+                        }) {
+                            Image(systemName: "arrow.uturn.up.square")
+                                .font(.system(size: 43))
+                                .fontWeight(.ultraLight)
+                                .foregroundColor(.white)
+                        }
+                        .simultaneousGesture(LongPressGesture(minimumDuration: 0).onEnded({ _ in
+                            turnUp = true
+                        }))
+                    }
+                    .padding(.top, -10.4)
+                    HStack(spacing: -9) {
+                        Button(action: {
+                            turnLeft = false
+                        }) {
+                            Image(systemName: "arrow.uturn.left.square")
+                                .font(.system(size: 43))
+                                .fontWeight(.ultraLight)
+                                .foregroundColor(.white)
+                        }
+                        .simultaneousGesture(LongPressGesture(minimumDuration: 0).onEnded({ _ in
+                            turnLeft = true
+                        }))
+                        Button(action: {
+                            goBackward = false
+                        }) {
+                            Image(systemName: "arrowtriangle.down.square")
+                                .font(.system(size: 43))
+                                .fontWeight(.ultraLight)
+                                .foregroundColor(.white)
+                        }
+                        .simultaneousGesture(LongPressGesture(minimumDuration: 0).onEnded({ _ in
+                            goBackward = true
+                        }))
+                        Button(action: {
+                            turnRight = false
+                        }) {
+                            Image(systemName: "arrow.uturn.right.square")
+                                .font(.system(size: 43))
+                                .fontWeight(.ultraLight)
+                                .foregroundColor(.white)
+                        }
+                        .simultaneousGesture(LongPressGesture(minimumDuration: 0).onEnded({ _ in
+                            turnRight = true
+                        }))
+                    }
+                    .padding(.top, -10.4)
+                    
+                    Text("x: \(cameraX, specifier: "%.2f"), y: \(cameraY, specifier: "%.2f"), z: \(cameraZ, specifier: "%.2f"), \(latitude, specifier: "%.0f")˚, \(longitude, specifier: "%.0f")˚")
+                        .foregroundColor(.white)
+                        .font(Font.system(.callout, design: .monospaced))
+                        .padding(.top, 35)
+                }
+            }
+            .padding(.bottom, 25)
+            .onReceive(timer) { _ in
+                if goForward {
+                    cameraX += cos(radiate(input: longitude)) * cos(radiate(input: latitude)) * 0.025
+                    cameraZ -= sin(radiate(input: longitude)) * cos(radiate(input: latitude)) * 0.025
+                    cameraY += sin(radiate(input: latitude)) * 0.025
+                }
+                if goBackward {
+                    cameraX -= cos(radiate(input: longitude)) * cos(radiate(input: latitude)) * 0.025
+                    cameraZ += sin(radiate(input: longitude)) * cos(radiate(input: latitude)) * 0.025
+                    cameraY -= sin(radiate(input: latitude)) * 0.025
+                }
+                if turnUp {
+                    latitude += 5
+                    if latitude > 90 {
+                        latitude = 90
+                    }
+                }
+                if turnDown {
+                    latitude -= 5
+                    if latitude < -90 {
+                        latitude = -90
+                    }
+                }
+                if turnLeft {
+                    longitude += 5
+                    if longitude >= 360 || longitude <= -360 {
+                        longitude = 0
+                    }
+                }
+                if turnRight {
+                    longitude -= 5
+                    if longitude >= 360 || longitude <= -360 {
+                        longitude = 0
+                    }
+                }
+            }
+            
+        }
+        
+    }
+}
+func radiate(input: Double) -> Double {
+    return input * .pi / 180.0
+}
+func computeDistance(x: Double, y: Double, z: Double) -> Double {
+    return sqrt(x * x + y * y + z * z)
+}
+func computeAngle(a: Double, b: Double, c: Double) -> Double {
+    let numerator = (a * a) + (b * b) - (c * c)
+    let denominator = 2 * a * b
+    return acos(numerator / denominator)
+}
+struct PointData: Identifiable {
+    let id = UUID()
+    let x: Double
+    let y: Double
+    let z: Double
+}
