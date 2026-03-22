@@ -2,11 +2,20 @@ import SwiftUI
 
 struct ContentView: View {
     @State var points: [PointData] = []
+    init() {
+        var tempPoints: [PointData] = []
+        for i in stride(from: 0.0, through: 175.0, by: 5) {
+            for j in stride(from: 0.0, through: 355.0, by: 5) {
+                tempPoints.append(PointData(x: 0.5 * cos(radiate(input: j)) * sin(radiate(input: i)), y: 0.5 * sin(radiate(input: j)), z: 0.5 * cos(radiate(input: j)) * cos(radiate(input: i))))
+            }
+        }
+        self._points = State(initialValue: tempPoints)
+    }
     @State var fov: Double = 180
     @State var latitude: Double = 0
     @State var longitude: Double = 0
     @State var cameraX: Double = 0
-    @State var cameraY: Double = 0.5
+    @State var cameraY: Double = 0
     @State var cameraZ: Double = 0
     @State var newX: Double = 0
     @State var newY: Double = 0
@@ -18,8 +27,6 @@ struct ContentView: View {
     @State var turnDown = false
     @State var turnLeft = false
     @State var turnRight = false
-    
-    
     let timer = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
     var body: some View {
         ZStack {
@@ -44,29 +51,25 @@ struct ContentView: View {
                 Spacer()
                 ZStack {
                     ForEach(points) { point in
-                        // find angular distance from the center
+                        // find angular distance from center of FOV
                         let distance = computeDistance(x: (point.x - cameraX), y: (point.y - cameraY), z: (point.z - cameraZ))
-                        let sightPoint = PointData(x: cameraX + cos(radiate(input: longitude)) * cos(radiate(input: latitude)) * distance, y: cameraY + sin(radiate(input: latitude)) * distance, z: cameraZ - sin(radiate(input: longitude)) * cos(radiate(input: latitude)) * distance)
-                        let difference = computeDistance(x: (point.x - sightPoint.x), y: (point.y - sightPoint.y), z: (point.z - sightPoint.z))
-                        let angle = computeAngle(a: distance, b: distance, c: difference)
+                        let opticalAxisPoint = PointData(x: cameraX + cos(radiate(input: longitude)) * cos(radiate(input: latitude)) * distance, y: cameraY + sin(radiate(input: latitude)) * distance, z: cameraZ - sin(radiate(input: longitude)) * cos(radiate(input: latitude)) * distance)
+                        let angle = computeAngle(a: distance, b: distance, c: computeDistance(x: (point.x - opticalAxisPoint.x), y: (point.y - opticalAxisPoint.y), z: (point.z - opticalAxisPoint.z)))
                         let angleOverFov = angle / radiate(input: fov)
                         
-                        // find eyeAngle
-                        let differenceX = point.x - cameraX
-                        let differenceY = point.y - cameraY
-                        let differenceZ = point.z - cameraZ
-                        let newDifferenceZ = cos(radiate(input: longitude)) * differenceZ + sin(radiate(input: longitude)) * differenceX
-                        let newDifferenceY = cos(radiate(input: latitude)) * differenceY - sin(radiate(input: latitude)) * (cos(radiate(input: longitude)) * differenceX - sin(radiate(input: longitude)) * differenceZ)
-                        let derivative = abs(newDifferenceY / newDifferenceZ)
-                        let eyeAngle = atan(derivative)
-
+                        // find screenAngle
+                        let localHorizontal = cos(radiate(input: longitude)) * (point.z - cameraZ) + sin(radiate(input: longitude)) * (point.x - cameraX)
+                        let localVertical = cos(radiate(input: latitude)) * (point.y - cameraY) - sin(radiate(input: latitude)) * (cos(radiate(input: longitude)) * (point.x - cameraX) - sin(radiate(input: longitude)) * (point.z - cameraZ))
+                        let derivative = localVertical / abs(localHorizontal)
+                        let screenAngle = localHorizontal == 0 && localVertical == 0 ? 0 : atan(derivative)
+                        
                         // to know left from right
-                        let right = newDifferenceZ > 0
-
+                        let right = localHorizontal > 0
+                        
                         Circle()
                             .foregroundColor(.white)
                             .frame(width: 3.5, height: 3.5)
-                            .offset(x: angleOverFov * (right ? 370 : -370) * cos(eyeAngle), y: angleOverFov * 370 * (newDifferenceY > 0 ? -sin(eyeAngle) : sin(eyeAngle)))
+                            .offset(x: angleOverFov * (right ? 370 : -370) * cos(screenAngle), y: -angleOverFov * 370 * sin(screenAngle))
                             .opacity(angleOverFov > 0.498 ? 0 : 1)
                     }
                     Circle()
@@ -85,19 +88,12 @@ struct ContentView: View {
                     .font(Font.system(.callout, design: .monospaced))
                     .padding(.horizontal, 10)
                     .frame(maxWidth: .infinity, alignment: .trailing)
-                    .onAppear {
-                        for i in stride(from: 0.0, through: 180.0, by: 5) {
-                            for j in stride(from: 0.0, through: 360.0, by: 5) {
-                                points.append(PointData(x: 0.5 + 0.5 * cos(radiate(input: j)) * sin(radiate(input: i)), y: 0.5 + 0.5 * sin(radiate(input: j)), z: 0.5 + 0.5 * cos(radiate(input: j)) * cos(radiate(input: i))))
-                            }
-                        }
-                    }
                     HStack {
                         Text("x: \(newX, specifier: "%.2f")")
                             .foregroundColor(.white)
                             .font(Font.system(.callout, design: .monospaced))
                             .padding(.horizontal, 10)
-                        Slider(value: $newX, in: 0...1, step: 0.01)
+                        Slider(value: $newX, in: -1...1, step: 0.01)
                             .padding(.trailing, 10)
                             .tint(Color("AccentColor"))
                     }
@@ -106,7 +102,7 @@ struct ContentView: View {
                             .foregroundColor(.white)
                             .font(Font.system(.callout, design: .monospaced))
                             .padding(.horizontal, 10)
-                        Slider(value: $newY, in: 0...1, step: 0.01)
+                        Slider(value: $newY, in: -1...1, step: 0.01)
                             .padding(.trailing, 10)
                             .tint(Color("AccentColor"))
                     }
@@ -115,7 +111,7 @@ struct ContentView: View {
                             .foregroundColor(.white)
                             .font(Font.system(.callout, design: .monospaced))
                             .padding(.horizontal, 10)
-                        Slider(value: $newZ, in: 0...1, step: 0.01)
+                        Slider(value: $newZ, in: -1...1, step: 0.01)
                             .padding(.trailing, 10)
                             .tint(Color("AccentColor"))
                     }
@@ -212,33 +208,19 @@ struct ContentView: View {
                     cameraY -= sin(radiate(input: latitude)) * 0.025
                 }
                 if turnUp {
-                    latitude += 5
-                    if latitude > 90 {
-                        latitude = 90
-                    }
+                    latitude = min(90, latitude + 5)
                 }
                 if turnDown {
-                    latitude -= 5
-                    if latitude < -90 {
-                        latitude = -90
-                    }
+                    latitude = max(-90, latitude - 5)
                 }
                 if turnLeft {
-                    longitude += 5
-                    if longitude >= 360 || longitude <= -360 {
-                        longitude = 0
-                    }
+                    longitude = (longitude + 5).truncatingRemainder(dividingBy: 360)
                 }
                 if turnRight {
-                    longitude -= 5
-                    if longitude >= 360 || longitude <= -360 {
-                        longitude = 0
-                    }
+                    longitude = (longitude - 5).truncatingRemainder(dividingBy: 360)
                 }
             }
-            
         }
-        
     }
 }
 func radiate(input: Double) -> Double {
@@ -251,6 +233,7 @@ func computeAngle(a: Double, b: Double, c: Double) -> Double {
     let numerator = (a * a) + (b * b) - (c * c)
     let denominator = 2 * a * b
     return acos(numerator / denominator)
+    
 }
 struct PointData: Identifiable {
     let id = UUID()
