@@ -63,13 +63,10 @@ struct ContentView: View {
                         let derivative = localVertical / abs(localHorizontal)
                         let screenAngle = localHorizontal == 0 && localVertical == 0 ? 0 : atan(derivative)
                         
-                        // to know left from right
-                        let right = localHorizontal > 0
-                        
                         Circle()
                             .foregroundColor(.white)
                             .frame(width: 3.5, height: 3.5)
-                            .offset(x: angleOverFov * (right ? 370 : -370) * cos(screenAngle), y: -angleOverFov * 370 * sin(screenAngle))
+                            .offset(x: angleOverFov * (localHorizontal > 0 ? 370 : -370) * cos(screenAngle), y: -angleOverFov * 370 * sin(screenAngle))
                             .opacity(angleOverFov > 0.498 ? 0 : 1)
                     }
                     Circle()
