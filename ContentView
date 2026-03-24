@@ -51,11 +51,11 @@ struct ContentView: View {
                 Spacer()
                 ZStack {
                     ForEach(points) { point in
-                        // find angular distance from center of FOV
+                        // find r, distance from center of FOV
                         let distance = computeDistance(x: (point.x - cameraX), y: (point.y - cameraY), z: (point.z - cameraZ))
                         let opticalAxisPoint = PointData(x: cameraX + cos(radiate(input: longitude)) * cos(radiate(input: latitude)) * distance, y: cameraY + sin(radiate(input: latitude)) * distance, z: cameraZ - sin(radiate(input: longitude)) * cos(radiate(input: latitude)) * distance)
                         let angle = computeAngle(a: distance, b: distance, c: computeDistance(x: (point.x - opticalAxisPoint.x), y: (point.y - opticalAxisPoint.y), z: (point.z - opticalAxisPoint.z)))
-                        let angleOverFov = angle / radiate(input: fov)
+                        let r = angle / radiate(input: fov)
                         
                         // find screenAngle
                         let localHorizontal = cos(radiate(input: longitude)) * (point.z - cameraZ) + sin(radiate(input: longitude)) * (point.x - cameraX)
@@ -66,8 +66,8 @@ struct ContentView: View {
                         Circle()
                             .foregroundColor(.white)
                             .frame(width: 3.5, height: 3.5)
-                            .offset(x: angleOverFov * (localHorizontal > 0 ? 370 : -370) * cos(screenAngle), y: -angleOverFov * 370 * sin(screenAngle))
-                            .opacity(angleOverFov > 0.498 ? 0 : 1)
+                            .offset(x: r * (localHorizontal > 0 ? 370 : -370) * cos(screenAngle), y: -r * 370 * sin(screenAngle))
+                            .opacity(r > 0.498 ? 0 : 1)
                     }
                     Circle()
                         .stroke(.white, lineWidth: 1.2)
